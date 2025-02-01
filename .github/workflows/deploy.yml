@@ -45,4 +45,4 @@ jobs:
         sudo docker pull ${{ secrets.AWS_ECR_LOGIN_URI }}/fastapi-app:latest
 
         echo "Running the new container..."
-        sudo docker run -d -p 8000:8000 --name fastapi-container fastapi-app
+        docker run -d -p 8000:8000 --name fastapi-container fastapi-app
