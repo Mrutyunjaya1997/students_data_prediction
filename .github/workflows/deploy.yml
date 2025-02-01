@@ -1,0 +1,54 @@
+name: CI/CD Pipeline - Deploy FastAPI to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Authenticate Docker with AWS ECR
+      run: |
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_LOGIN_URI }}
+
+    - name: Build Docker Image
+      run: |
+        docker build -t fastapi-app .
+
+    - name: Tag Docker Image for ECR
+      run: |
+        docker tag fastapi-app:latest ${{ secrets.AWS_ECR_LOGIN_URI }}/fastapi-app:latest
+
+    - name: Push Image to AWS ECR
+      run: |
+        docker push ${{ secrets.AWS_ECR_LOGIN_URI }}/fastapi-app:latest
+
+    - name: Deploy to EC2 via SSH
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+          echo "Logging into AWS ECR on EC2..."
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_LOGIN_URI }}
+
+          echo "Stopping & removing old container (if exists)..."
+          sudo docker stop fastapi-app || true
+          sudo docker rm fastapi-app || true
+
+          echo "Pulling the latest Docker image..."
+          sudo docker pull ${{ secrets.AWS_ECR_LOGIN_URI }}/fastapi-app:latest
+
+          echo "Running the new container..."
+          sudo docker run -d -p 8000:8000 --name fastapi-app ${{ secrets.AWS_ECR_LOGIN_URI }}/fastapi-app:latest
+        EOF
