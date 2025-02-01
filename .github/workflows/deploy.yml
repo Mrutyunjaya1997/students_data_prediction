@@ -2,7 +2,7 @@ name: CI/CD Pipeline - Deploy FastAPI to AWS EC2
 
 on:
   push:
-    branches:
+    branches: # test added
       - main
 
 jobs:
